@@ -8,7 +8,7 @@ using .Heuristics
 include("modules/TTMcCinstance.jl")
 using .Instances
 
-#= define o argumento --file no terminal
+# define o argumento --file no terminal
 s = ArgParseSettings()
 @add_arg_table! s begin
     "--file", "-f"
@@ -17,9 +17,8 @@ s = ArgParseSettings()
         required = true
 end
 parsed_args = parse_args(s)
-=#
 
-parsed_args = Dict("file" => "data/540-1/inputListCG")
+#parsed_args = Dict("file" => "data/540-1/inputListCG")
 instancias = readlines(parsed_args["file"])
 
 for i in 1:length(instancias)
