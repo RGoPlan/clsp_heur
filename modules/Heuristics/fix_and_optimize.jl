@@ -1,52 +1,44 @@
 using JuMP
 
-function fix_and_optimize(model, k=2, kl=1, tlimit=600)
-    model_fo = model
+function fix_and_optimize(model_fo, k=2, kl=1, tlimit=600)
     t_elapsed = 0
-    α = 1
-    nper = length(model[:x][:,1])
-    nprod = length(model[:x][1,:])
+    obj_iter = objective_value(model_fo)
+    last_obj_iter = Inf
 
-    for i in range(1, stop=nper, step=kl)
+    nper = length(model_fo[:x][:,1])
+    nprod = length(model_fo[:x][1,:])
 
-        # define a janela e o tempo limite de sua execução
-        set_time_limit_sec(model_fo, ( (tlimit - t_elapsed) / (abs(nper - α + 1) / kl) ))
-        β = min(α + k -1, nper)
-        model_temp = model_fo
+    set_time_limit_sec(model_fo, ( (tlimit - t_elapsed) / (nper / kl) ))
 
-        # retira os valores fixos das variáveis y da janela
-        for t in α:β
-            for j in 1:nprod
-                #unfix(model[:x][t,j])
-                unfix(model_temp[:y][t,j])
-                #unfix(model[:s][t,j])
+    while (time_limit_sec(model_fo)) > 0 && (obj_iter < last_obj_iter)
+        last_obj_iter = obj_iter
+        α = 1
+
+        for i in range(1, stop=nper, step=kl)
+            β = min(α + k -1, nper)
+
+            # retira os valores fixos das variáveis y da janela
+            for t in α:β
+                for j in 1:nprod
+                    unfix(model_fo[:y][t,j])
+                end
             end
-        end
 
-        # seta as variáveis y da janela como binária
-        for t in α:β
-            for j in 1:nprod
-                #set_integer(model[:x][t, j])
-                set_binary(model_temp[:y][t, j])
-                #set_integer(model[:s][t, j])
+            # resolve o problema e armazena o tempo de execução
+            t_elapsed = @elapsed optimize!(model_fo)
+            set_time_limit_sec(model_fo, ( (tlimit - t_elapsed) / (abs(nper - α + 1) / kl) ))
+
+            for t in α:β
+                for j in 1:nprod
+                    fix(model_fo[:y][t,j], value.(model_fo[:y][t,j]))
+                end
             end
+
+            α = α + kl
+
         end
 
-        # resolve o problema e armazena o tempo de execução
-        t_elapsed = @elapsed optimize!(model_temp)
-
-        for t in α:β
-            for j in 1:nprod
-                #fix(model[:x][t,j], value.(model[:x][t,j]))
-                fix(model_temp[:y][t,j], value.(model_temp[:y][t,j]))
-                #fix(model[:s][t,j], value.(model[:s][t,j]))
-            end
-        end
-
-        if has_values(model_temp) && termination_status(model_temp) in (MOI.FEASIBLE_POINT, MOI.OPTIMAL, MOI.TIME_LIMIT) && (objective_value(model_temp) < objective_value(model_fo))
-            model_fo = model_temp
-        end
-            
+        obj_iter = objective_value(model_fo)
     end
 
     return(model_fo)

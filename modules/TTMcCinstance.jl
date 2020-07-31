@@ -11,7 +11,7 @@ const GUROBI_ENV = Gurobi.Env()
 
 # cria o tipo TTMcCinstance para formatar a instância
 mutable struct TTMcCinstance
-    nprod::Int16    
+    nprod::Int16
     nper::Int16
     p::Float16              # custo unitário de produção do item j
     c::Int32                # capacidade de produção + estoque
