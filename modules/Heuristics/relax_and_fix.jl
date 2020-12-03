@@ -1,6 +1,6 @@
 using JuMP
 
-function relax_and_fix(model_rf, k=2, kl=1, tlimit=600)
+function relax_and_fix(model_rf, k=2, kl=1, tlimit=120)
     t_elapsed = 0
     α = 1
     αl = -1
@@ -8,19 +8,27 @@ function relax_and_fix(model_rf, k=2, kl=1, tlimit=600)
     nper = length(model_rf[:x][:,1])
     nprod = length(model_rf[:x][1,:])
 
+    β = min(α + k -1, nper)
+
     # relaxa as variáveis y 
     for var in model_rf[:y]
         unset_binary(var)
     end
 
-    for i in 1:kl:nper
-
+    n_inter = 0
+    n_bt = 0
+    while β < nper
         # define a janela e o tempo limite de sua execução
         set_time_limit_sec(model_rf, ( (tlimit - t_elapsed) / abs((nper - α + 1) / kl) ))
-        β = min(α + k -1, nper)
+        #println("tempo setado")
+        
         if αl != -1
             α = αl
+        else
+            β = min(α + k -1, nper)
         end
+
+        #println("[$(α), $(β)]")
 
         # seta como binário as variáveis y da janela
         for t in α:β
@@ -46,12 +54,18 @@ function relax_and_fix(model_rf, k=2, kl=1, tlimit=600)
             α = α + kl
             αl = -1
         elseif α > 1
+            # println("Estou voltando...")
+            n_bt += 1
             αl = α - 1
+            if β == 20
+                β -= 1
+            end
         else
-            error("Modelo inviável!")
+            break
         end
+        n_inter += 1
     
     end
 
-    return model_rf
+    return model_rf, n_inter, n_bt, t_elapsed
 end

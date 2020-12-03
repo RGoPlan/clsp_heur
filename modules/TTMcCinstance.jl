@@ -15,9 +15,9 @@ mutable struct TTMcCinstance
     nper::Int16
     p::Float16              # custo unitário de produção do item j
     c::Int32                # capacidade de produção + estoque
-    a::Array{Float16}       # insumos consumidos para produzir uma unidade do item j
-    b::Array{Float16}       # insumos consumidos para setup de uma unidade do item j
+    a::Array{Float16}       # tempo de produção uma unidade do item j
     h::Array{Float16}       # custo unitário de estocagem do item j
+    b::Array{Float16}       # tempo de setup de uma unidade do item j
     q::Array{Float16}       # custo unitário de setup do item j
     d::Array{Float16}       # demanda determinística do item j no período t
 end
@@ -38,8 +38,15 @@ function read_instance_TTMcC(file_path::String)
         f[4:4+nprod-1, 2],
         f[4:4+nprod-1, 3],
         f[4:4+nprod-1, 4],
-        f[4+nprod:4+nprod+nper-1, 1:nprod]
+        f[4+nprod:4+nprod+nper-1, 1:min(nprod,15)]
     )
+
+    if nprod > 15
+        linha = 4+nprod+nper
+        d_append = f[linha:linha+nper-1, 1:nprod-15]
+
+        inst.d = hcat(inst.d, d_append)
+    end
 
     return inst
 end
@@ -49,9 +56,9 @@ function model_TTMcC(inst::TTMcCinstance)
     model = Model(() -> Gurobi.Optimizer(GUROBI_ENV))
 
     @variables(model, begin
-        x[t=1:inst.nper, j=1:inst.nprod], Int
+        x[t=1:inst.nper, j=1:inst.nprod] >= 0
         y[t=1:inst.nper, j=1:inst.nprod], Bin
-        s[t=1:inst.nper, j=1:inst.nprod], Int
+        s[t=1:inst.nper, j=1:inst.nprod] >= 0
     end)
 
     @objective(
@@ -63,11 +70,9 @@ function model_TTMcC(inst::TTMcCinstance)
         capac_constr[t=1:inst.nper], sum(inst.a[j]*x[t,j] + inst.b[j]*y[t,j] for j=1:inst.nprod) <= inst.c
         stock1[j=1:inst.nprod], x[1, j] - s[1, j] == inst.d[1, j]
         stock[t=2:inst.nper, j=1:inst.nprod], inst.d[t, j] + s[t, j] == x[t, j] + s[t-1,j]
-        setup[t=1:inst.nper, j=1:inst.nprod], x[t,j] <= y[t,j]*max((inst.c - inst.b[j]) / inst.a[j], sum(inst.d[t,j] for t=t:inst.nper))
-        nnegatx[t=1:inst.nper, j=1:inst.nprod], x[t,j] >= 0
-        nnegats[t=1:inst.nper, j=1:inst.nprod], s[t,j] >= 0
+        setup[t=1:inst.nper, j=1:inst.nprod], x[t,j] <= y[t,j]*min((inst.c - inst.b[j]) / inst.a[j], sum(inst.d[t,j] for t=t:inst.nper))
     end)
-
+    
     return model
 end
 
